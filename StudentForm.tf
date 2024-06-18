@@ -1,74 +1,71 @@
-provider "aws" {
-	region = "us-east-1"
-	profile = "Devops_Rushi"
-}
-
-#Create A VPC 
+#Create VPC
 resource "aws_vpc" "vpc" {
-    cidr_block = "10.0.0.0/16"
+    cidr_block = var.vpc_cidr_block
 
 
     tags = {
-        name = "aws_vpc",
+        Name = "aws_vpc",
     } 
 }
 
-#Create a public subnet
+#Create Public Subnet
 resource "aws_subnet" "public" {
   vpc_id = aws_vpc.vpc.id
-  cidr_block = "10.0.1.0/24"
-  availability_zone = "us-east-1a"
+  cidr_block = var.public_subnet_cidr
+  availability_zone = var.availability_zone_public
   map_public_ip_on_launch = true 
 
   tags = {
-    name = "Public-subnet_1",
+    Name = "Public-subnet_1",
   }
 }
 
-#Create a private subnet for tomcat 
+#Create Private subnet for Tomcat
 resource "aws_subnet" "private-1" {
   vpc_id = aws_vpc.vpc.id
-  cidr_block = "10.0.20.0/25"
-  availability_zone = "us-east-1b"
+  cidr_block = var.tomcat_subnet_cidr 
+  availability_zone = var.availability_zone_tomcat
   map_public_ip_on_launch = false 
 
   tags = {
-    name = "Private-subnet-1"
+    Name = "Private-subnet-1"
   }
 
 }
-#Create a private subnet for
+
+#Create PRivate Subnet for Database
 resource "aws_subnet" "private-2" {
   vpc_id = aws_vpc.vpc.id
-  cidr_block = "10.0.30.0/26"
-  availability_zone = "us-east-1c"
+  cidr_block = var.database_subnet_cidr
+  availability_zone = var.availability_zone_darabases
   map_public_ip_on_launch = false 
 
   tags = {
-    name = "Private-subnet-2"
+    Name = "Private-subnet-2"
   }
 }
-#Create a internet gateway 
+
+#Create internet gateway 
 resource "aws_internet_gateway" "igw" {
     vpc_id = aws_vpc.vpc.id
     tags = {
-      name = "aws_internet_gateway_1"
+      Name = "aws_internet_gateway_1"
     }
   
 }
 
-#Create a elastic ip 
+#Create Elastic IP 
 resource "aws_eip" "elasticip" {
  domain = "vpc"
 }
 
-#Create a NAT gateway
+#Create NAT gateway 
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.elasticip.id
   subnet_id = aws_subnet.public.id
 }
 
-#Create a public route table
+#Creaet Route table for public subnet
 resource "aws_route_table" "RT1" {
     vpc_id = aws_vpc.vpc.id
 
@@ -77,16 +74,18 @@ resource "aws_route_table" "RT1" {
         gateway_id = aws_internet_gateway.igw.id
     
     }
-  
+    tags = {
+      Name = "Public-RT"
+    }
 }
 
-#Create a public route table and public subnet association
+#Add public subnet in public route table 
 resource "aws_route_table_association" "association" {
   subnet_id = aws_subnet.public.id
   route_table_id = aws_route_table.RT1.id
 }
 
-#Create a private route table
+#Creeate route table for private subnets
 resource "aws_route_table" "rt-pri" {
   vpc_id = aws_vpc.vpc.id
 
@@ -94,9 +93,12 @@ resource "aws_route_table" "rt-pri" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_nat_gateway.nat.id
   }
+  tags = {
+      Name = "Private-RT"
+    }
 }
 
-#Create a private route table and private subnet association
+#Add private subnets in private route table
 resource "aws_route_table_association" "private-association-table" {
   subnet_id = aws_subnet.private-1.id
   route_table_id = aws_route_table.rt-pri.id
@@ -106,21 +108,29 @@ resource "aws_route_table_association" "private-association-table-2" {
   subnet_id = aws_subnet.private-2.id
   route_table_id = aws_route_table.rt-pri.id
 }
-# Create a Security group  
 
+# Creaet a security group 
 resource "aws_security_group" "ssh" {
   name = "Three-tier"
-  description = "Allow SSH,mysql,tomcat access"
+  description = "Allow SSH,mysql,tomcat access,http"
   vpc_id = aws_vpc.vpc.id
 }
 
-#Add port 22,80,8080,3306 in inbound rule 
+#Add ports 22,8080,80,3306
 resource "aws_vpc_security_group_ingress_rule" "ssh1" {
   security_group_id = aws_security_group.ssh.id
   cidr_ipv4 = "0.0.0.0/0"
   from_port = 22
   ip_protocol = "tcp"
   to_port = 22
+}
+
+resource "aws_vpc_security_group_ingress_rule" "https" {
+  security_group_id = aws_security_group.ssh.id
+  cidr_ipv4 = "0.0.0.0/0"
+  from_port = 443
+  ip_protocol = "tcp"
+  to_port = 443
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tomcat" {
@@ -147,31 +157,30 @@ resource "aws_vpc_security_group_ingress_rule" "mysql" {
   to_port = 3306
   
 }
-
-#Add outbout rule 
+#Add outbound rule 
 resource "aws_vpc_security_group_egress_rule" "outbound" {
   security_group_id = aws_security_group.ssh.id
   cidr_ipv4 = "0.0.0.0/0"
   ip_protocol = "-1"
 }
 
-#Add network interface with public subnet to connet to public instance /nginx instance  
+#Create Network interface with public subnet to connect instance with VPC
 resource "aws_network_interface" "network" {
   subnet_id = aws_subnet.public.id
-  private_ip = "10.0.1.100/24"
+  private_ip = var.private_ip_public
 }
 
-#Attach the security group to instance 
+#Attach Security Group to Public Instance
 resource "aws_network_interface_sg_attachment" "sg2" {
   security_group_id = aws_security_group.ssh.id
   network_interface_id = aws_instance.instace.primary_network_interface_id
 }
-
-#Create a instance for NGINX
+#Launch public Instance 
 resource "aws_instance" "instace" {
-  ami = "ami-08a0d1e16fc3f61ea"
-  instance_type = "t2.micro"
-  key_name = "nat" 
+  ami = var.ami_id
+  instance_type = var.instance_type
+  key_name = var.key_name
+  user_data = file("${path.module}/nginx.sh")
   network_interface {
     network_interface_id = aws_network_interface.network.id
     device_index = 0
@@ -183,16 +192,19 @@ resource "aws_instance" "instace" {
 
 }
 
-#Add network interface with private subnet 1 to connet to tomcat instance
+#Create network interface with private subnet to connect instance with VPC
 resource "aws_network_interface" "private-network" {
   subnet_id = aws_subnet.private-1.id
-  private_ip = "10.0.20.100/24"
+  private_ip = var.private_ip_tomcat
 }
-#Create a instance for tomcat
+
+#Launch private instance for tomcat 
 resource "aws_instance" "private-1" {
-  ami = "ami-08a0d1e16fc3f61ea"
-  instance_type = "t2.micro"
-  key_name = "nat"
+  ami = var.ami_id
+  instance_type = var.instance_type
+  key_name = var.key_name
+ 
+
   network_interface {
     network_interface_id = aws_network_interface.private-network.id
     device_index = 0
@@ -202,23 +214,25 @@ resource "aws_instance" "private-1" {
   }
 }
 
-#Attach the security group to instance 
+#Attach Security Group to Private Instance
 resource "aws_network_interface_sg_attachment""sg-private"{
   security_group_id = aws_security_group.ssh.id
   network_interface_id = aws_instance.private-1.primary_network_interface_id
 }
 
-#Add network interface with private subnet to connet to Database instance
+
+#Create network interface with private subnet 2 to connect instance with VPC
 resource "aws_network_interface" "private-network-2" {
   subnet_id = aws_subnet.private-2.id
-  private_ip = "10.0.30.100"
+  private_ip = var.private_ip_database
 }
 
-#Create a instance for Database 
+#Launch private instance for database
 resource "aws_instance" "private-2" {
-  ami = "ami-08a0d1e16fc3f61ea"
-  instance_type = "t2.micro"
-  key_name = "nat"
+  ami = var.ami_id
+  instance_type = var.instance_type
+  key_name = var.key_name
+
   network_interface {
     network_interface_id = aws_network_interface.private-network-2.id
     device_index = 0
@@ -228,27 +242,27 @@ resource "aws_instance" "private-2" {
   }
   }
 
-#Attach the security group to instance 
+  #Attach security group to instance 
   resource "aws_network_interface_sg_attachment" "sg-private-2" {
     security_group_id = aws_security_group.ssh.id
     network_interface_id = aws_instance.private-2.primary_network_interface_id
   }
 
-#Create a subnet group for Database 
+#Create DB subnet group for private subnets
 resource "aws_db_subnet_group" "db-subnet" {
   name = "db-subnet"
   subnet_ids = [aws_subnet.private-1.id,aws_subnet.private-2.id]
 }
 
-# Create a Database with created VPC 
+#Create DB instance 
 resource "aws_db_instance" "rds" {
-  allocated_storage = 20
-  db_name = "student"
-  engine = "mariadb"
-  engine_version = "10.11.6"
-  username = "admin"
-  password = "passwd123"
-  instance_class = "db.t3.micro"
+  allocated_storage = var.allocated_storage
+  db_name = var.db_name
+  engine = var.db_engine
+  engine_version = var.db_engine_version
+  username = var.db_username
+  password = var.db_password
+  instance_class = var.db_instance_class
   skip_final_snapshot = true
   db_subnet_group_name = aws_db_subnet_group.db-subnet.name
 
