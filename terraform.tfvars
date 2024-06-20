@@ -1,20 +1,19 @@
 vpc_cidr_block = "10.0.0.0/16"
-public_subnet_cidr = "10.0.1.0/24"
-tomcat_subnet_cidr = "10.0.20.0/25"
-database_subnet_cidr = "10.0.30.0/26"
-availability_zone_public = "us-east-1a"
-availability_zone_tomcat = "us-east-1b"
-availability_zone_darabases = "us-east-1c"
-private_ip_public = "10.0.1.100"
-private_ip_tomcat = "10.0.20.100"
-private_ip_database = "10.0.30.100"
+subnet_cidr = ["10.0.1.0/24","10.0.20.0/25","10.0.30.0/26"]
+availability_zone = ["us-east-1a","us-east-1b","us-east-1c"]
+map_public_ip_on_launch = [ true, false]
+private_ip= ["10.0.1.100","10.0.20.100","10.0.30.100"]
+sg-ports = [ 22,443,8080,80,3306,0 ]
 ami_id = "ami-08a0d1e16fc3f61ea"
 instance_type = "t2.micro"
 key_name = "nat"
-db_name = "student"
-db_engine = "MariaDB"
-db_engine_version = "10.11.6"
-db_instance_class = "db.t3.micro"
-db_username = "admin"
-db_password = "passwd123"
-allocated_storage = 20
+db_specification = {
+name = "student"
+engine = "MariaDB"
+engine_version = "10.11.6"
+instance_class = "db.t3.micro"
+username = "admin"
+password = "passwd123"
+}
+
+db_allocated_storage = 20
