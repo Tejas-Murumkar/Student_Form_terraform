@@ -1,0 +1,9 @@
+vpc_cidr_block = "10.0.0.0/16"
+subnet_cidr = "10.0.1.0/24"
+private_subnet_1_cidr = "10.0.20.0/25"
+private_subnet_2_cidr = "10.0.30.0/26"
+availability_zone = "us-east-1a"
+private_1_availability_zone = "us-east-1b"
+private_2_availability_zone = "us-east-1c"
+map_public_ip_on_launch = true
+map_public_ip_on_launch_private = false
